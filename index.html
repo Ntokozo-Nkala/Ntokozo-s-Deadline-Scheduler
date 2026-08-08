@@ -25,9 +25,6 @@
     --orange-soft:rgba(245,166,35,0.14);
     --red:#FB5B5B;
     --red-soft:rgba(251,91,91,0.14);
-    --overdue:#FF6B81;
-    --overdue-bg:#241318;
-    --overdue-border:#5C2530;
     --font-mono:'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
     --font-body:'Manrope', system-ui, -apple-system, sans-serif;
     --radius:14px;
@@ -72,6 +69,7 @@
     border-radius:4px;
   }
 
+ 
   .topbar{
     display:flex;
     justify-content:space-between;
@@ -166,7 +164,6 @@
     transition:border-color .15s, color .15s;
   }
   .cal-btn:hover{border-color:var(--accent); color:var(--text);}
-
   .summary-strip{
     display:flex;
     gap:10px;
@@ -190,7 +187,7 @@
   .dot.nominal{background:var(--green); box-shadow:0 0 0 3px var(--green-soft);}
   .dot.warning{background:var(--orange); box-shadow:0 0 0 3px var(--orange-soft);}
   .dot.critical{background:var(--red); box-shadow:0 0 0 3px var(--red-soft);}
-  .dot.overdue{background:var(--overdue); box-shadow:0 0 0 3px rgba(255,107,129,0.14);}
+  .dot.closed{background:var(--text-faint); box-shadow:0 0 0 3px rgba(138,147,166,0.14);}
 
   .hero{
     position:relative;
@@ -340,11 +337,7 @@
     transition:width 1s linear, background-color .3s;
     background:var(--green);
   }
-  .progress-track.overdue-track{
-    background-image:repeating-linear-gradient(135deg, var(--overdue-bg) 0 6px, #1a0f13 6px 12px);
-    border-color:var(--overdue-border);
-  }
-  .progress-track.overdue-track .progress-fill{width:0% !important;}
+  .progress-track.closed-track .progress-fill{width:0% !important;}
 
   .status-line{
     font-family:var(--font-mono);
@@ -373,6 +366,7 @@
   .hero.is-clear .hero-active{display:none;}
   .hero.is-clear .hero-clear{display:flex;}
 
+  /*Queue section */
   .queue-heading{
     display:flex;
     justify-content:space-between;
@@ -402,7 +396,7 @@
   }
   .card:hover{transform:translateY(-3px); border-color:var(--border);}
   .card.critical{border-color:rgba(251,91,91,0.4); box-shadow:0 0 0 1px rgba(251,91,91,0.08);}
-  .card.overdue{background:var(--overdue-bg); border-color:var(--overdue-border);}
+  .card.closed{opacity:.55;}
   .card.is-next{border-color:var(--accent); box-shadow:0 0 0 1px rgba(79,209,197,0.15);}
 
   .card-top{
@@ -448,7 +442,6 @@
     padding:7px 4px;
     text-align:center;
   }
-  .card.overdue .mini-seg{background:#1a0f13; border-color:var(--overdue-border);}
   .mini-num{
     display:block;
     font-family:var(--font-mono);
@@ -476,12 +469,12 @@
     gap:7px;
   }
   .card-status .dot{width:7px; height:7px;}
-
   .status-nominal{color:var(--green);}
   .status-warning{color:var(--orange);}
   .status-critical{color:var(--red);}
-  .status-overdue{color:var(--overdue);}
+  .status-closed{color:var(--text-dim);}
 
+ 
   .page-footer{
     margin-top:40px;
     padding-top:20px;
@@ -574,7 +567,7 @@
     <span class="summary-chip"><span class="dot nominal"></span><b id="count-nominal">0</b> nominal</span>
     <span class="summary-chip"><span class="dot warning"></span><b id="count-warning">0</b> warning</span>
     <span class="summary-chip"><span class="dot critical"></span><b id="count-critical">0</b> critical</span>
-    <span class="summary-chip"><span class="dot overdue"></span><b id="count-overdue">0</b> overdue</span>
+    <span class="summary-chip"><span class="dot closed"></span><b id="count-closed">0</b> closed</span>
   </section>
 
   <main>
@@ -631,8 +624,6 @@
 <script>
 (function(){
   "use strict";
-
-  
   const DEADLINES = [
     { id:'wd-1',   code:'WEDE5020', course:'Web Development (Introduction)', assignment:'Part 1',                 mode:'online', turnitin:true,  due:'2026-08-14T23:59:00' },
     { id:'p1b-p1', code:'PROG6112', course:'Programming 1B',                 assignment:'Practical Assignment 1', mode:'online', turnitin:true,  due:'2026-08-24T23:59:00' },
@@ -646,16 +637,14 @@
 
   const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;   
   const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000; 
-
   const hasStorage = !!(window.storage && typeof window.storage.get === 'function');
-
 
   const sorted = DEADLINES
     .map(item => ({ ...item, deadlineDate: new Date(item.due) }))
     .sort((a, b) => a.deadlineDate - b.deadlineDate);
 
   const notified = new Set();
-  const lastStatus = {};      
+  const lastStatus = {};    
   let currentHeroId = null;
 
   /*Helpers*/
@@ -672,7 +661,7 @@
   }
 
   function getStatus(remainingMs){
-    if (remainingMs <= 0) return { key:'overdue',  label:'OVERDUE'  };
+    if (remainingMs <= 0) return { key:'closed',  label:'CLOSED'  };
     const days = remainingMs / 86400000;
     if (days < 3)  return { key:'critical', label:'CRITICAL' };
     if (days < 7)  return { key:'warning',  label:'WARNING'  };
@@ -736,19 +725,22 @@
     const bar = document.getElementById('bar-' + item.id);
     const statusEl = document.getElementById('status-' + item.id);
 
-    card.classList.remove('nominal','warning','critical','overdue');
+    card.classList.remove('nominal','warning','critical','closed');
     card.classList.add(status.key);
-    track.classList.toggle('overdue-track', status.key === 'overdue');
+    track.classList.toggle('closed-track', status.key === 'closed');
 
-    document.getElementById('dd-' + item.id).textContent = pad(parts.days);
-    document.getElementById('hh-' + item.id).textContent = pad(parts.hours);
-    document.getElementById('mm-' + item.id).textContent = pad(parts.mins);
-    document.getElementById('ss-' + item.id).textContent = pad(parts.secs);
-
-    if (status.key === 'overdue'){
+    if (status.key === 'closed'){
+      document.getElementById('dd-' + item.id).textContent = '00';
+      document.getElementById('hh-' + item.id).textContent = '00';
+      document.getElementById('mm-' + item.id).textContent = '00';
+      document.getElementById('ss-' + item.id).textContent = '00';
       bar.style.width = '0%';
-      statusEl.innerHTML = '<span class="dot overdue"></span><span class="status-overdue">OVERDUE · ' + parts.days + 'd ' + pad(parts.hours) + 'h ago</span>';
+      statusEl.innerHTML = '<span class="dot closed"></span><span class="status-closed">CLOSED · deadline passed</span>';
     } else {
+      document.getElementById('dd-' + item.id).textContent = pad(parts.days);
+      document.getElementById('hh-' + item.id).textContent = pad(parts.hours);
+      document.getElementById('mm-' + item.id).textContent = pad(parts.mins);
+      document.getElementById('ss-' + item.id).textContent = pad(parts.secs);
       const frac = Math.min(1, Math.max(0, remainingMs / WINDOW_MS));
       bar.style.width = (frac * 100).toFixed(1) + '%';
       bar.style.background = 'var(--' + (status.key === 'nominal' ? 'green' : status.key === 'warning' ? 'orange' : 'red') + ')';
@@ -759,7 +751,7 @@
       lastStatus[item.id] = status.key;
       document.getElementById('sr-' + item.id).textContent =
         item.course + ' ' + item.assignment + ' is now ' + status.label.toLowerCase() +
-        (status.key === 'overdue' ? ', past its deadline.' : ', ' + parts.days + ' days remaining.');
+        (status.key === 'closed' ? '; its deadline has passed.' : ', ' + parts.days + ' days remaining.');
     }
 
     maybeNotify(item, remainingMs);
@@ -805,17 +797,12 @@
     const bar = document.getElementById('hero-bar');
     const track = document.getElementById('hero-track');
     const statusEl = document.getElementById('hero-status');
-    track.classList.toggle('overdue-track', status.key === 'overdue');
+    track.classList.remove('closed-track');
 
-    if (status.key === 'overdue'){
-      bar.style.width = '0%';
-      statusEl.innerHTML = '<span class="dot overdue"></span><span class="status-overdue">OVERDUE · ' + parts.days + 'd ' + pad(parts.hours) + 'h ago</span>';
-    } else {
-      const frac = Math.min(1, Math.max(0, remainingMs / WINDOW_MS));
-      bar.style.width = (frac * 100).toFixed(1) + '%';
-      bar.style.background = 'var(--' + (status.key === 'nominal' ? 'green' : status.key === 'warning' ? 'orange' : 'red') + ')';
-      statusEl.innerHTML = '<span class="dot ' + status.key + '"></span><span class="status-' + status.key + '">' + status.label + ' · ' + parts.days + 'd ' + pad(parts.hours) + 'h remaining</span>';
-    }
+    const frac = Math.min(1, Math.max(0, remainingMs / WINDOW_MS));
+    bar.style.width = (frac * 100).toFixed(1) + '%';
+    bar.style.background = 'var(--' + (status.key === 'nominal' ? 'green' : status.key === 'warning' ? 'orange' : 'red') + ')';
+    statusEl.innerHTML = '<span class="dot ' + status.key + '"></span><span class="status-' + status.key + '">' + status.label + ' · ' + parts.days + 'd ' + pad(parts.hours) + 'h remaining</span>';
   }
 
   function updateClock(now){
@@ -823,13 +810,13 @@
     document.getElementById('sys-time').textContent = now.toLocaleTimeString('en-ZA', { hour12:false });
   }
 
-  /*Main tick*/
+  /* Main tick*/
   function tick(){
     const now = new Date();
     updateClock(now);
 
     let nextItem = null;
-    const counts = { nominal:0, warning:0, critical:0, overdue:0 };
+    const counts = { nominal:0, warning:0, critical:0, closed:0 };
 
     sorted.forEach(item => {
       const { remainingMs, status } = updateCard(item, now);
@@ -844,10 +831,10 @@
     document.getElementById('count-nominal').textContent  = counts.nominal;
     document.getElementById('count-warning').textContent  = counts.warning;
     document.getElementById('count-critical').textContent = counts.critical;
-    document.getElementById('count-overdue').textContent  = counts.overdue;
+    document.getElementById('count-closed').textContent  = counts.closed;
   }
 
-  /* Notifications*/
+  /*Notifications*/
   function showToast(item, parts){
     const container = document.getElementById('toast-container');
     const el = document.createElement('div');
@@ -866,7 +853,7 @@
   function persistNotified(id){
     if (!hasStorage) return;
     try { window.storage.set('notified:' + id, 'true', false).catch(function(){}); }
-    catch(e){ /* ignore */ }
+    catch(e){ }
   }
 
   function maybeNotify(item, remainingMs){
@@ -882,7 +869,7 @@
           body: item.course + ' — ' + item.assignment + ' is due in ' + parts.days + 'd ' + pad(parts.hours) + 'h.',
           tag: item.id
         });
-      } catch(e){}
+      } catch(e){ }
     }
     showToast(item, parts);
   }
@@ -897,7 +884,7 @@
     }));
   }
 
-  /*Calendar export*/
+  /* Calendar export*/
   function icsDate(date){
     return date.getFullYear() + pad(date.getMonth() + 1) + pad(date.getDate()) +
       'T' + pad(date.getHours()) + pad(date.getMinutes()) + pad(date.getSeconds());
@@ -964,6 +951,7 @@
   }
 
   /*Notification permission button*/
+  
   function setupAlertButton(){
     const btn = document.getElementById('alert-toggle');
     const supported = 'Notification' in window;
@@ -999,7 +987,9 @@
     });
   }
 
-  /*Init*/
+  /* ---------------------------------------------------------------
+     9. Init
+  ----------------------------------------------------------------*/
   (async function init(){
     buildCards();
     await hydrateNotified();
