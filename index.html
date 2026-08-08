@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ntokozo's Deadline Scheduler — Assessment Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0D12;
+    --panel:#12161D;
+    --panel-alt:#151A22;
+    --border:#232A35;
+    --border-soft:#1B212C;
+    --text:#E7EAF0;
+    --text-dim:#8A93A6;
+    --text-faint:#535D6E;
+    --accent:#4FD1C5;
+    --accent-soft:rgba(79,209,197,0.14);
+    --green:#34D399;
+    --green-soft:rgba(52,211,153,0.14);
+    --orange:#F5A623;
+    --orange-soft:rgba(245,166,35,0.14);
+    --red:#FB5B5B;
+    --red-soft:rgba(251,91,91,0.14);
+    --overdue:#FF6B81;
+    --overdue-bg:#241318;
+    --overdue-border:#5C2530;
+    --font-mono:'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    --font-body:'Manrope', system-ui, -apple-system, sans-serif;
+    --radius:14px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    min-height:100vh;
+    position:relative;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .bg-grid{
+    position:fixed;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size:38px 38px;
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,0,0,0.9), transparent 75%);
+  }
+
+  .page{
+    position:relative;
+    z-index:1;
+    max-width:1180px;
+    margin:0 auto;
+    padding:28px 24px 60px;
+  }
+
+  a{color:var(--accent);}
+
+  :focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:3px;
+    border-radius:4px;
+  }
+
+  .topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    flex-wrap:wrap;
+    padding-bottom:20px;
+    border-bottom:1px solid var(--border-soft);
+    margin-bottom:22px;
+  }
+  .brand{display:flex; align-items:flex-start; gap:12px;}
+  .brand-dot{
+    width:11px; height:11px; border-radius:50%;
+    background:var(--accent);
+    margin-top:7px;
+    box-shadow:0 0 0 3px var(--accent-soft);
+    flex-shrink:0;
+  }
+  .brand h1{
+    font-family:var(--font-mono);
+    font-size:19px;
+    font-weight:700;
+    letter-spacing:0.06em;
+    margin:0 0 4px;
+    text-transform:uppercase;
+  }
+  .brand p{
+    margin:0;
+    font-size:13px;
+    color:var(--text-dim);
+  }
+  .topbar-right{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  .sys-clock{
+    font-family:var(--font-mono);
+    font-size:13px;
+    color:var(--text-dim);
+    text-align:right;
+    line-height:1.5;
+  }
+  .sys-clock strong{
+    display:block;
+    color:var(--text);
+    font-size:16px;
+    letter-spacing:0.04em;
+  }
+  .alert-btn{
+    font-family:var(--font-mono);
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    padding:10px 14px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--text-dim);
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:border-color .15s, color .15s;
+  }
+  .alert-btn::before{
+    content:'';
+    width:7px; height:7px; border-radius:50%;
+    background:var(--text-faint);
+  }
+  .alert-btn.idle:hover{border-color:var(--accent); color:var(--text);}
+  .alert-btn.armed{color:var(--green); border-color:rgba(52,211,153,0.35); cursor:default;}
+  .alert-btn.armed::before{background:var(--green); box-shadow:0 0 0 3px var(--green-soft);}
+  .alert-btn.blocked{color:var(--red); border-color:rgba(251,91,91,0.3); cursor:not-allowed;}
+  .alert-btn.blocked::before{background:var(--red);}
+  .alert-btn:disabled{opacity:.85;}
+
+  .cal-btn{
+    font-family:var(--font-mono);
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    padding:10px 14px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--text-dim);
+    cursor:pointer;
+    transition:border-color .15s, color .15s;
+  }
+  .cal-btn:hover{border-color:var(--accent); color:var(--text);}
+
+  .summary-strip{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:26px;
+  }
+  .summary-chip{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:7px 14px;
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  .summary-chip b{color:var(--text); font-size:13px;}
+  .dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+  .dot.nominal{background:var(--green); box-shadow:0 0 0 3px var(--green-soft);}
+  .dot.warning{background:var(--orange); box-shadow:0 0 0 3px var(--orange-soft);}
+  .dot.critical{background:var(--red); box-shadow:0 0 0 3px var(--red-soft);}
+  .dot.overdue{background:var(--overdue); box-shadow:0 0 0 3px rgba(255,107,129,0.14);}
+
+  .hero{
+    position:relative;
+    background:linear-gradient(180deg, var(--panel-alt), var(--panel));
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:30px 34px;
+    margin-bottom:34px;
+    overflow:hidden;
+    animation:hero-in .5s ease;
+  }
+  @keyframes hero-in{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+  .hud-corner{position:absolute; width:20px; height:20px; border-color:var(--accent); opacity:.55;}
+  .hud-corner.tl{top:12px; left:12px; border-top:2px solid; border-left:2px solid; border-radius:4px 0 0 0;}
+  .hud-corner.tr{top:12px; right:12px; border-top:2px solid; border-right:2px solid; border-radius:0 4px 0 0;}
+  .hud-corner.bl{bottom:12px; left:12px; border-bottom:2px solid; border-left:2px solid; border-radius:0 0 0 4px;}
+  .hud-corner.br{bottom:12px; right:12px; border-bottom:2px solid; border-right:2px solid; border-radius:0 0 4px 0;}
+
+  .hero-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:6px;
+  }
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    font-weight:600;
+  }
+  .queue-badge{
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    letter-spacing:0.06em;
+    color:var(--text-dim);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:3px 8px;
+  }
+  .hero h2{
+    font-size:clamp(20px, 3vw, 27px);
+    margin:2px 0 4px;
+    font-weight:700;
+    line-height:1.25;
+  }
+  .hero-due{
+    font-family:var(--font-mono);
+    font-size:13.5px;
+    color:var(--text-dim);
+    margin:0 0 22px;
+  }
+  .hero-meta{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    margin:0 0 8px;
+  }
+  .module-code{
+    display:inline-block;
+    font-family:var(--font-mono);
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:0.04em;
+    color:var(--text-faint);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:2px 7px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+  .hero-meta .module-code{margin-left:0;}
+  .meta-tags{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin:0 0 12px;
+  }
+  .tag{
+    display:inline-flex;
+    align-items:center;
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    font-weight:600;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    padding:3px 9px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    background:var(--bg);
+  }
+  .tag-online{border-color:rgba(79,209,197,0.35); color:var(--accent);}
+  .tag-campus{border-color:rgba(155,140,255,0.4); color:#9B8CFF;}
+  .tag-turnitin{border-color:var(--border); color:var(--text-dim);}
+
+  .clock-row{
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  .clock-seg{
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 18px;
+    text-align:center;
+    min-width:82px;
+  }
+  .hero .clock-seg{min-width:104px; padding:14px 18px;}
+  .clock-num{
+    display:block;
+    font-family:var(--font-mono);
+    font-weight:800;
+    font-size:34px;
+    line-height:1;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:0.02em;
+  }
+  .clock-lbl{
+    display:block;
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    letter-spacing:0.14em;
+    color:var(--text-faint);
+    margin-top:6px;
+    text-transform:uppercase;
+  }
+
+  .progress-track{
+    height:10px;
+    border-radius:999px;
+    background:var(--bg);
+    border:1px solid var(--border);
+    overflow:hidden;
+    margin-bottom:14px;
+  }
+  .progress-fill{
+    height:100%;
+    width:100%;
+    border-radius:999px;
+    transition:width 1s linear, background-color .3s;
+    background:var(--green);
+  }
+  .progress-track.overdue-track{
+    background-image:repeating-linear-gradient(135deg, var(--overdue-bg) 0 6px, #1a0f13 6px 12px);
+    border-color:var(--overdue-border);
+  }
+  .progress-track.overdue-track .progress-fill{width:0% !important;}
+
+  .status-line{
+    font-family:var(--font-mono);
+    font-size:13.5px;
+    font-weight:600;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+  }
+  .status-line .dot{width:9px; height:9px;}
+
+  .hero-clear{
+    display:none;
+    align-items:center;
+    gap:14px;
+    padding:10px 0 4px;
+  }
+  .hero-clear .check{
+    width:40px; height:40px; border-radius:50%;
+    border:2px solid var(--green);
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; color:var(--green); flex-shrink:0;
+  }
+  .hero-clear h2{margin:0 0 4px;}
+  .hero-clear p{margin:0; color:var(--text-dim); font-size:14px;}
+  .hero.is-clear .hero-active{display:none;}
+  .hero.is-clear .hero-clear{display:flex;}
+
+  .queue-heading{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:16px;
+  }
+  .queue-count{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--text-faint);
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(258px, 1fr));
+    gap:16px;
+  }
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:18px 20px;
+    transition:transform .15s, border-color .15s, box-shadow .15s;
+  }
+  .card:hover{transform:translateY(-3px); border-color:var(--border);}
+  .card.critical{border-color:rgba(251,91,91,0.4); box-shadow:0 0 0 1px rgba(251,91,91,0.08);}
+  .card.overdue{background:var(--overdue-bg); border-color:var(--overdue-border);}
+  .card.is-next{border-color:var(--accent); box-shadow:0 0 0 1px rgba(79,209,197,0.15);}
+
+  .card-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+  }
+  .next-tag{
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:0.1em;
+    color:var(--accent);
+    font-weight:700;
+  }
+  .card-title{
+    font-size:16px;
+    font-weight:700;
+    margin:0 0 2px;
+  }
+  .card-sub{
+    font-size:13px;
+    color:var(--text-dim);
+    margin:0 0 10px;
+  }
+  .card-due{
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    color:var(--text-faint);
+    margin:0 0 14px;
+  }
+
+  .mini-clock{
+    display:flex;
+    gap:8px;
+    margin-bottom:12px;
+  }
+  .mini-seg{
+    flex:1;
+    background:var(--bg);
+    border:1px solid var(--border-soft);
+    border-radius:8px;
+    padding:7px 4px;
+    text-align:center;
+  }
+  .card.overdue .mini-seg{background:#1a0f13; border-color:var(--overdue-border);}
+  .mini-num{
+    display:block;
+    font-family:var(--font-mono);
+    font-weight:700;
+    font-size:18px;
+    font-variant-numeric:tabular-nums;
+  }
+  .mini-lbl{
+    display:block;
+    font-family:var(--font-mono);
+    font-size:9px;
+    letter-spacing:0.1em;
+    color:var(--text-faint);
+    margin-top:3px;
+  }
+
+  .card .progress-track{height:7px; margin-bottom:12px;}
+  .card-status{
+    font-family:var(--font-mono);
+    font-size:12px;
+    font-weight:600;
+    margin:0;
+    display:flex;
+    align-items:center;
+    gap:7px;
+  }
+  .card-status .dot{width:7px; height:7px;}
+
+  .status-nominal{color:var(--green);}
+  .status-warning{color:var(--orange);}
+  .status-critical{color:var(--red);}
+  .status-overdue{color:var(--overdue);}
+
+  .page-footer{
+    margin-top:40px;
+    padding-top:20px;
+    border-top:1px solid var(--border-soft);
+    font-size:12px;
+    color:var(--text-faint);
+    line-height:1.7;
+  }
+  .page-footer strong{color:var(--text-dim);}
+
+  .sr-only{
+    position:absolute; width:1px; height:1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap;
+  }
+
+  .toast-container{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    z-index:50;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    max-width:320px;
+  }
+  .toast{
+    background:var(--panel);
+    border:1px solid var(--accent);
+    border-radius:10px;
+    padding:12px 14px;
+    display:flex;
+    gap:10px;
+    font-size:12.5px;
+    color:var(--text);
+    box-shadow:0 8px 24px rgba(0,0,0,0.4);
+    animation:toast-in .25s ease;
+  }
+  .toast strong{font-size:12px; letter-spacing:.03em; color:var(--accent);}
+  .toast-dot{width:8px; height:8px; border-radius:50%; background:var(--accent); margin-top:4px; flex-shrink:0;}
+  .toast-out{animation:toast-out .35s ease forwards;}
+  @keyframes toast-in{from{opacity:0; transform:translateX(12px);} to{opacity:1; transform:translateX(0);}}
+  @keyframes toast-out{to{opacity:0; transform:translateX(12px);}}
+
+  @media (prefers-reduced-motion: reduce){
+    .hero{animation:none;}
+    .toast{animation:none;}
+    .toast-out{animation:none;}
+    .card{transition:none;}
+  }
+
+  @media (max-width: 640px){
+    .page{padding:20px 14px 40px;}
+    .topbar{flex-direction:column; align-items:flex-start;}
+    .topbar-right{width:100%; justify-content:space-between;}
+    .hero{padding:22px 18px;}
+    .clock-row{gap:8px;}
+    .clock-seg{padding:9px 10px; min-width:0; flex:1;}
+    .hero .clock-seg{min-width:0; padding:11px 8px;}
+    .clock-num{font-size:24px;}
+    .hero .clock-num{font-size:28px;}
+    .grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-grid" aria-hidden="true"></div>
+
+<div class="page">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot" aria-hidden="true"></span>
+      <div>
+        <h1>Ntokozo's Deadline Scheduler</h1>
+        <p>Earliest-deadline-first queue · 8 assessments tracked</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="sys-clock">
+        <span id="sys-date">—</span>
+        <strong id="sys-time">--:--:--</strong>
+      </div>
+      <button class="cal-btn" id="calendar-btn" type="button" title="Download a calendar file with a 10-day reminder before each deadline — import it into Google, Apple, or Outlook Calendar to get alerts on your phone.">Add to Calendar</button>
+      <button class="alert-btn idle" id="alert-toggle" type="button" title="Get a browser notification 10 days before each deadline, while this tab is open.">Enable Alerts</button>
+    </div>
+  </header>
+
+  <section class="summary-strip" aria-label="Queue status summary">
+    <span class="summary-chip"><span class="dot nominal"></span><b id="count-nominal">0</b> nominal</span>
+    <span class="summary-chip"><span class="dot warning"></span><b id="count-warning">0</b> warning</span>
+    <span class="summary-chip"><span class="dot critical"></span><b id="count-critical">0</b> critical</span>
+    <span class="summary-chip"><span class="dot overdue"></span><b id="count-overdue">0</b> overdue</span>
+  </section>
+
+  <main>
+    <section class="hero" id="hero-panel" aria-label="Next due assessment">
+      <span class="hud-corner tl" aria-hidden="true"></span>
+      <span class="hud-corner tr" aria-hidden="true"></span>
+      <span class="hud-corner bl" aria-hidden="true"></span>
+      <span class="hud-corner br" aria-hidden="true"></span>
+
+      <div class="hero-active">
+        <div class="hero-row">
+          <span class="eyebrow">Next in queue</span>
+          <span class="queue-badge" id="hero-badge">Q01</span>
+        </div>
+        <h2 id="hero-title">—</h2>
+        <div class="hero-meta" id="hero-meta"></div>
+        <p class="hero-due" id="hero-due">—</p>
+
+        <div class="clock-row">
+          <div class="clock-seg"><span class="clock-num" id="hero-dd">--</span><span class="clock-lbl">Days</span></div>
+          <div class="clock-seg"><span class="clock-num" id="hero-hh">--</span><span class="clock-lbl">Hours</span></div>
+          <div class="clock-seg"><span class="clock-num" id="hero-mm">--</span><span class="clock-lbl">Mins</span></div>
+          <div class="clock-seg"><span class="clock-num" id="hero-ss">--</span><span class="clock-lbl">Secs</span></div>
+        </div>
+
+        <div class="progress-track" id="hero-track"><div class="progress-fill" id="hero-bar"></div></div>
+        <p class="status-line" id="hero-status"><span class="dot nominal"></span>—</p>
+      </div>
+
+      <div class="hero-clear">
+        <span class="check" aria-hidden="true">✓</span>
+        <div>
+          <h2>Queue clear</h2>
+          <p>No pending deadlines right now — nice work.</p>
+        </div>
+      </div>
+
+      <span class="sr-only" id="hero-sr" aria-live="polite"></span>
+    </section>
+
+    <section class="queue-section">
+      <div class="queue-heading">
+        <span class="eyebrow">Full queue</span>
+        <span class="queue-count" id="queue-count">8 processes · sorted by deadline</span>
+      </div>
+      <div class="grid" id="cards-grid"></div>
+    </section>
+  </main>
+
+</div>
+
+<div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  
+  const DEADLINES = [
+    { id:'wd-1',   code:'WEDE5020', course:'Web Development (Introduction)', assignment:'Part 1',                 mode:'online', turnitin:true,  due:'2026-08-14T23:59:00' },
+    { id:'p1b-p1', code:'PROG6112', course:'Programming 1B',                 assignment:'Practical Assignment 1', mode:'online', turnitin:true,  due:'2026-08-24T23:59:00' },
+    { id:'itpp-1', code:'ITPP5112', course:'IT Professional Practice',       assignment:'Assignment 1',            mode:'online', turnitin:true,  due:'2026-09-15T23:59:00' },
+    { id:'wd-2',   code:'WEDE5020', course:'Web Development (Introduction)', assignment:'Part 2',                 mode:'online', turnitin:true,  due:'2026-09-18T23:59:00' },
+    { id:'p1b-t1', code:'PROG6112', course:'Programming 1B',                 assignment:'Test 1 Sitting 1',        mode:'campus', turnitin:false, due:'2026-09-28T12:00:00' },
+    { id:'os-1',   code:'OPSY5121', course:'Operating Systems 1A',           assignment:'Assignment 1',            mode:'online', turnitin:true,  due:'2026-10-01T23:59:00' },
+    { id:'itpp-2', code:'ITPP5112', course:'IT Professional Practice',       assignment:'Assignment 2',            mode:'online', turnitin:true,  due:'2026-10-16T23:59:00' },
+    { id:'os-2',   code:'OPSY5121', course:'Operating Systems 1A',           assignment:'Assignment 2',            mode:'online', turnitin:true,  due:'2026-10-22T23:59:00' }
+  ];
+
+  const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;   
+  const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000; 
+
+  const hasStorage = !!(window.storage && typeof window.storage.get === 'function');
+
+
+  const sorted = DEADLINES
+    .map(item => ({ ...item, deadlineDate: new Date(item.due) }))
+    .sort((a, b) => a.deadlineDate - b.deadlineDate);
+
+  const notified = new Set();
+  const lastStatus = {};      
+  let currentHeroId = null;
+
+  /*Helpers*/
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  function partsFromMs(ms){
+    const abs = Math.abs(ms);
+    return {
+      days:  Math.floor(abs / 86400000),
+      hours: Math.floor((abs % 86400000) / 3600000),
+      mins:  Math.floor((abs % 3600000) / 60000),
+      secs:  Math.floor((abs % 60000) / 1000)
+    };
+  }
+
+  function getStatus(remainingMs){
+    if (remainingMs <= 0) return { key:'overdue',  label:'OVERDUE'  };
+    const days = remainingMs / 86400000;
+    if (days < 3)  return { key:'critical', label:'CRITICAL' };
+    if (days < 7)  return { key:'warning',  label:'WARNING'  };
+    return           { key:'nominal',  label:'NOMINAL'  };
+  }
+
+  function formatDue(date){
+    const d = date.toLocaleDateString('en-ZA', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+    const t = date.toLocaleTimeString('en-ZA', { hour:'2-digit', minute:'2-digit' });
+    return d + ' · ' + t;
+  }
+
+  function metaTagsHTML(item){
+    const modeTag = item.mode === 'campus'
+      ? '<span class="tag tag-campus">Campus Sitting</span>'
+      : '<span class="tag tag-online">Online Submission</span>';
+    const turnitinTag = item.turnitin ? '<span class="tag tag-turnitin">Turnitin</span>' : '';
+    return modeTag + turnitinTag;
+  }
+
+  /*Build static DOM*/
+  function cardTemplate(item, idx){
+    const q = 'Q' + pad(idx + 1);
+    return (
+      '<article class="card" id="card-' + item.id + '">' +
+        '<div class="card-top">' +
+          '<span class="queue-badge">' + q + '</span>' +
+          '<span class="next-tag" id="tag-' + item.id + '" hidden>NEXT</span>' +
+        '</div>' +
+        '<h3 class="card-title">' + item.course + ' <span class="module-code">' + item.code + '</span></h3>' +
+        '<p class="card-sub">' + item.assignment + '</p>' +
+        '<div class="meta-tags">' + metaTagsHTML(item) + '</div>' +
+        '<p class="card-due">' + formatDue(item.deadlineDate) + '</p>' +
+        '<div class="mini-clock">' +
+          '<div class="mini-seg"><span class="mini-num" id="dd-' + item.id + '">--</span><span class="mini-lbl">D</span></div>' +
+          '<div class="mini-seg"><span class="mini-num" id="hh-' + item.id + '">--</span><span class="mini-lbl">H</span></div>' +
+          '<div class="mini-seg"><span class="mini-num" id="mm-' + item.id + '">--</span><span class="mini-lbl">M</span></div>' +
+          '<div class="mini-seg"><span class="mini-num" id="ss-' + item.id + '">--</span><span class="mini-lbl">S</span></div>' +
+        '</div>' +
+        '<div class="progress-track" id="track-' + item.id + '"><div class="progress-fill" id="bar-' + item.id + '"></div></div>' +
+        '<p class="card-status" id="status-' + item.id + '"><span class="dot nominal"></span>—</p>' +
+        '<span class="sr-only" id="sr-' + item.id + '" aria-live="polite"></span>' +
+      '</article>'
+    );
+  }
+
+  function buildCards(){
+    const grid = document.getElementById('cards-grid');
+    grid.innerHTML = sorted.map(cardTemplate).join('');
+    document.getElementById('queue-count').textContent =
+      sorted.length + ' processes · sorted by deadline';
+  }
+
+  /*Per-tick updates*/
+  function updateCard(item, now){
+    const remainingMs = item.deadlineDate - now;
+    const parts = partsFromMs(remainingMs);
+    const status = getStatus(remainingMs);
+    const card = document.getElementById('card-' + item.id);
+    const track = document.getElementById('track-' + item.id);
+    const bar = document.getElementById('bar-' + item.id);
+    const statusEl = document.getElementById('status-' + item.id);
+
+    card.classList.remove('nominal','warning','critical','overdue');
+    card.classList.add(status.key);
+    track.classList.toggle('overdue-track', status.key === 'overdue');
+
+    document.getElementById('dd-' + item.id).textContent = pad(parts.days);
+    document.getElementById('hh-' + item.id).textContent = pad(parts.hours);
+    document.getElementById('mm-' + item.id).textContent = pad(parts.mins);
+    document.getElementById('ss-' + item.id).textContent = pad(parts.secs);
+
+    if (status.key === 'overdue'){
+      bar.style.width = '0%';
+      statusEl.innerHTML = '<span class="dot overdue"></span><span class="status-overdue">OVERDUE · ' + parts.days + 'd ' + pad(parts.hours) + 'h ago</span>';
+    } else {
+      const frac = Math.min(1, Math.max(0, remainingMs / WINDOW_MS));
+      bar.style.width = (frac * 100).toFixed(1) + '%';
+      bar.style.background = 'var(--' + (status.key === 'nominal' ? 'green' : status.key === 'warning' ? 'orange' : 'red') + ')';
+      statusEl.innerHTML = '<span class="dot ' + status.key + '"></span><span class="status-' + status.key + '">' + status.label + ' · ' + parts.days + 'd ' + pad(parts.hours) + 'h remaining</span>';
+    }
+
+    if (lastStatus[item.id] !== status.key){
+      lastStatus[item.id] = status.key;
+      document.getElementById('sr-' + item.id).textContent =
+        item.course + ' ' + item.assignment + ' is now ' + status.label.toLowerCase() +
+        (status.key === 'overdue' ? ', past its deadline.' : ', ' + parts.days + ' days remaining.');
+    }
+
+    maybeNotify(item, remainingMs);
+    return { remainingMs, status };
+  }
+
+  function updateHero(nextItem, now){
+    const panel = document.getElementById('hero-panel');
+
+    if (!nextItem){
+      panel.classList.add('is-clear');
+      return;
+    }
+    panel.classList.remove('is-clear');
+
+    if (nextItem.id !== currentHeroId){
+      currentHeroId = nextItem.id;
+      const idx = sorted.findIndex(d => d.id === nextItem.id);
+      document.getElementById('hero-badge').textContent = 'Q' + pad(idx + 1);
+      document.getElementById('hero-title').textContent = nextItem.course + ' — ' + nextItem.assignment;
+      document.getElementById('hero-meta').innerHTML = '<span class="module-code">' + nextItem.code + '</span>' + metaTagsHTML(nextItem);
+      document.getElementById('hero-due').textContent = 'Due ' + formatDue(nextItem.deadlineDate);
+
+      sorted.forEach(d => {
+        const tag = document.getElementById('tag-' + d.id);
+        const card = document.getElementById('card-' + d.id);
+        if (!tag || !card) return;
+        const isNext = d.id === nextItem.id;
+        tag.hidden = !isNext;
+        card.classList.toggle('is-next', isNext);
+      });
+    }
+
+    const remainingMs = nextItem.deadlineDate - now;
+    const parts = partsFromMs(remainingMs);
+    const status = getStatus(remainingMs);
+
+    document.getElementById('hero-dd').textContent = pad(parts.days);
+    document.getElementById('hero-hh').textContent = pad(parts.hours);
+    document.getElementById('hero-mm').textContent = pad(parts.mins);
+    document.getElementById('hero-ss').textContent = pad(parts.secs);
+
+    const bar = document.getElementById('hero-bar');
+    const track = document.getElementById('hero-track');
+    const statusEl = document.getElementById('hero-status');
+    track.classList.toggle('overdue-track', status.key === 'overdue');
+
+    if (status.key === 'overdue'){
+      bar.style.width = '0%';
+      statusEl.innerHTML = '<span class="dot overdue"></span><span class="status-overdue">OVERDUE · ' + parts.days + 'd ' + pad(parts.hours) + 'h ago</span>';
+    } else {
+      const frac = Math.min(1, Math.max(0, remainingMs / WINDOW_MS));
+      bar.style.width = (frac * 100).toFixed(1) + '%';
+      bar.style.background = 'var(--' + (status.key === 'nominal' ? 'green' : status.key === 'warning' ? 'orange' : 'red') + ')';
+      statusEl.innerHTML = '<span class="dot ' + status.key + '"></span><span class="status-' + status.key + '">' + status.label + ' · ' + parts.days + 'd ' + pad(parts.hours) + 'h remaining</span>';
+    }
+  }
+
+  function updateClock(now){
+    document.getElementById('sys-date').textContent = now.toLocaleDateString('en-ZA', { weekday:'short', day:'numeric', month:'short' });
+    document.getElementById('sys-time').textContent = now.toLocaleTimeString('en-ZA', { hour12:false });
+  }
+
+  /*Main tick*/
+  function tick(){
+    const now = new Date();
+    updateClock(now);
+
+    let nextItem = null;
+    const counts = { nominal:0, warning:0, critical:0, overdue:0 };
+
+    sorted.forEach(item => {
+      const { remainingMs, status } = updateCard(item, now);
+      counts[status.key]++;
+      if (remainingMs > 0 && (!nextItem || item.deadlineDate < nextItem.deadlineDate)){
+        nextItem = item;
+      }
+    });
+
+    updateHero(nextItem, now);
+
+    document.getElementById('count-nominal').textContent  = counts.nominal;
+    document.getElementById('count-warning').textContent  = counts.warning;
+    document.getElementById('count-critical').textContent = counts.critical;
+    document.getElementById('count-overdue').textContent  = counts.overdue;
+  }
+
+  /* Notifications*/
+  function showToast(item, parts){
+    const container = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML =
+      '<span class="toast-dot" aria-hidden="true"></span>' +
+      '<div><strong>10-DAY ALERT</strong><br>' + item.course + ' — ' + item.assignment +
+      ' is due in ' + parts.days + 'd ' + pad(parts.hours) + 'h.</div>';
+    container.appendChild(el);
+    setTimeout(() => {
+      el.classList.add('toast-out');
+      setTimeout(() => el.remove(), 350);
+    }, 8000);
+  }
+
+  function persistNotified(id){
+    if (!hasStorage) return;
+    try { window.storage.set('notified:' + id, 'true', false).catch(function(){}); }
+    catch(e){ /* ignore */ }
+  }
+
+  function maybeNotify(item, remainingMs){
+    if (remainingMs <= 0 || remainingMs > TEN_DAYS_MS) return;
+    if (notified.has(item.id)) return;
+    notified.add(item.id);
+    persistNotified(item.id);
+
+    const parts = partsFromMs(remainingMs);
+    if ('Notification' in window && Notification.permission === 'granted'){
+      try {
+        new Notification('10-day deadline alert', {
+          body: item.course + ' — ' + item.assignment + ' is due in ' + parts.days + 'd ' + pad(parts.hours) + 'h.',
+          tag: item.id
+        });
+      } catch(e){}
+    }
+    showToast(item, parts);
+  }
+
+  async function hydrateNotified(){
+    if (!hasStorage) return;
+    await Promise.all(sorted.map(async item => {
+      try{
+        const res = await window.storage.get('notified:' + item.id, false);
+        if (res && res.value === 'true') notified.add(item.id);
+      } catch(e){ /* key not set yet — that's fine */ }
+    }));
+  }
+
+  /*Calendar export*/
+  function icsDate(date){
+    return date.getFullYear() + pad(date.getMonth() + 1) + pad(date.getDate()) +
+      'T' + pad(date.getHours()) + pad(date.getMinutes()) + pad(date.getSeconds());
+  }
+
+  function escapeICS(str){
+    return String(str).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+  }
+
+  function buildICS(){
+    const now = new Date();
+    const stamp = now.getUTCFullYear() + pad(now.getUTCMonth() + 1) + pad(now.getUTCDate()) +
+      'T' + pad(now.getUTCHours()) + pad(now.getUTCMinutes()) + pad(now.getUTCSeconds()) + 'Z';
+
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Ntokozo Deadline Scheduler//EN',
+      'CALSCALE:GREGORIAN'
+    ];
+
+    sorted.forEach(item => {
+      const start = item.deadlineDate;
+      const end = new Date(start.getTime() + 15 * 60000);
+      const modeText = item.mode === 'campus' ? 'Campus Sitting' : 'Online Submission';
+      const turnitinText = item.turnitin ? ' Turnitin required.' : '';
+
+      lines.push(
+        'BEGIN:VEVENT',
+        'UID:' + item.id + '@ntokozo-deadline-scheduler',
+        'DTSTAMP:' + stamp,
+        'DTSTART:' + icsDate(start),
+        'DTEND:' + icsDate(end),
+        'SUMMARY:' + escapeICS(item.course + ' \u2014 ' + item.assignment + ' (' + item.code + ')'),
+        'DESCRIPTION:' + escapeICS(modeText + '.' + turnitinText),
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        'DESCRIPTION:' + escapeICS('Reminder: ' + item.course + ' ' + item.assignment + ' is due in 10 days'),
+        'TRIGGER:-P10D',
+        'END:VALARM',
+        'END:VEVENT'
+      );
+    });
+
+    lines.push('END:VCALENDAR');
+    return lines.join('\r\n');
+  }
+
+  function downloadICS(){
+    const ics = buildICS();
+    const blob = new Blob([ics], { type:'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ntokozo-deadlines.ics';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function setupCalendarButton(){
+    document.getElementById('calendar-btn').addEventListener('click', downloadICS);
+  }
+
+  /*Notification permission button*/
+  function setupAlertButton(){
+    const btn = document.getElementById('alert-toggle');
+    const supported = 'Notification' in window;
+
+    function render(){
+      if (!supported){
+        btn.textContent = 'Alerts unavailable';
+        btn.className = 'alert-btn blocked';
+        btn.disabled = true;
+        return;
+      }
+      const perm = Notification.permission;
+      if (perm === 'granted'){
+        btn.textContent = 'Alerts armed';
+        btn.className = 'alert-btn armed';
+        btn.disabled = true;
+      } else if (perm === 'denied'){
+        btn.textContent = 'Alerts blocked';
+        btn.className = 'alert-btn blocked';
+        btn.disabled = true;
+      } else {
+        btn.textContent = 'Enable alerts';
+        btn.className = 'alert-btn idle';
+        btn.disabled = false;
+      }
+    }
+
+    render();
+    btn.addEventListener('click', async function(){
+      if (!supported) return;
+      try { await Notification.requestPermission(); } catch(e){ /* ignore */ }
+      render();
+    });
+  }
+
+  /*Init*/
+  (async function init(){
+    buildCards();
+    await hydrateNotified();
+    setupAlertButton();
+    setupCalendarButton();
+    tick();
+    setInterval(tick, 1000);
+  })();
+
+})();
+</script>
+
+</body>
+</html>
